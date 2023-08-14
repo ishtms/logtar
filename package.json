@@ -1,0 +1,18 @@
+{
+  "name": "logtard",
+  "version": "0.0.1",
+  "description": "A lightweight logger for your applications with rolling file support and much more.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "logger",
+    "fast",
+    "stream",
+    "rolling",
+    "json"
+  ],
+  "author": "",
+  "license": "ISC"
+}
