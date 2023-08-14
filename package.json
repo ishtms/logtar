@@ -13,6 +13,14 @@
     "rolling",
     "json"
   ],
-  "author": "",
-  "license": "ISC"
+  "author": "Ishtmeet Singh <ish.rissam@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ishtms/logtard.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ishtms/logtard/issues"
+  },
+  "homepage": "https://github.com/ishtms/logtard"
 }
