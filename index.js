@@ -54,8 +54,8 @@ class LogConfig {
     // how often should the log file be rolled. rolled means a new file is created after every x minutes/hours/days/weeks/months/years
     #rolling_config = RollingConfig.Hourly;
 
-    // the prefix to be added to every log message
-    #file_prefix = "[Logtar]: ";
+    // the prefix to be added to new files.
+    #file_prefix = "Logtar_";
 
     // max size of the log file in bytes
     #max_file_size = 5 * 1024 * 1024; // 5 MB
