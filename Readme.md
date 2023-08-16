@@ -1,4 +1,4 @@
-# Logging framework built for the open source 
+# A fast, flexible and configurable Logging framework for NodeJS
 
 Master the art of backend development and servers with the free open source book on [github](https://github.com/ishtms/learn-nodejs-hard-way)
 
