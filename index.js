@@ -1,64 +1,135 @@
-const path = require("node:path");
 const fs = require("node:fs");
 
-class RollingConfig {
-    static Minutely = 0;
-    static Hourly = 1;
-    static Daily = 2;
-    static Weekly = 3;
-    static Monthly = 4;
-    static Yearly = 5;
+class RollingSizeOptions {
+    static OneKB = 1024;
+    static FiveKB = 5 * 1024;
+    static TenKB = 10 * 1024;
+    static TwentyKB = 20 * 1024;
+    static FiftyKB = 50 * 1024;
+    static HundredKB = 100 * 1024;
 
-    static assert(rolling_config) {
-        if (
-            ![this.Minutely, this.Hourly, this.Daily, this.Weekly, this.Monthly, this.Yearly].includes(rolling_config)
-        ) {
+    static HalfMB = 512 * 1024;
+    static OneMB = 1024 * 1024;
+    static FiveMB = 5 * 1024 * 1024;
+    static TenMB = 10 * 1024 * 1024;
+    static TwentyMB = 20 * 1024 * 1024;
+    static FiftyMB = 50 * 1024 * 1024;
+    static HundredMB = 100 * 1024 * 1024;
+
+    static assert(size_threshold) {
+        if (typeof size_threshold !== "number" || size_threshold < RollingSizeOptions.OneKB) {
             throw new Error(
-                `rolling_config must be an instance of RollingConfig. Unsupported param ${JSON.stringify(
-                    rolling_config
-                )}`
+                `size_threshold must be at-least 1 KB. Unsupported param ${JSON.stringify(size_threshold)}`
             );
-        }
-    }
-
-    /**
-     * @param {string} time_in_string The time in string format. Supported values are m, h, d, w, m, y
-     */
-    static from_initials(time_in_string) {
-        if (typeof time_in_string !== "string") {
-            throw new Error(`time_in_string must be a string. Unsupported param ${JSON.stringify(time_in_string)}`);
-        }
-
-        switch (time_in_string.toLowerCase().trim()) {
-            case "m":
-                return this.Minutely;
-            case "h":
-                return this.Hourly;
-            case "d":
-                return this.Daily;
-            case "w":
-                return this.Weekly;
-            case "mo":
-                return this.Monthly;
-            case "y":
-                return this.Yearly;
-            default:
-                throw new Error(`Invalid time_in_string ${time_in_string}. Supported values are m, h, d, w, m, y`);
         }
     }
 }
 
+class RollingTimeOptions {
+    static Minutely = 60; // Every 60 seconds
+    static Hourly = 60 * this.Minutely;
+    static Daily = 24 * this.Hourly;
+    static Weekly = 7 * this.Daily;
+    static Monthly = 30 * this.Daily;
+    static Yearly = 12 * this.Monthly;
+
+    static assert(time_option) {
+        if (![this.Minutely, this.Hourly, this.Daily, this.Weekly, this.Monthly, this.Yearly].includes(time_option)) {
+            throw new Error(
+                `time_option must be an instance of RollingConfig. Unsupported param ${JSON.stringify(time_option)}`
+            );
+        }
+    }
+}
+
+class RollingConfig {
+    /**
+     * @type {RollingTimeOptions}
+     * @private
+     * 
+     * @description Units - seconds
+     */
+    #time_threshold = RollingTimeOptions.Hourly;
+    #size_threshold = RollingSizeOptions.FiveMB;
+
+    /**
+     * @returns {RollingConfig} A new instance of RollingConfig with default values.
+     */
+    static with_defaults() {
+        return new RollingConfig();
+    }
+
+    /**
+     * @param {number} size_threshold Roll/Create new file every time the current file size exceeds this threshold.
+     * @returns {RollingConfig} The current instance of RollingConfig.
+     */
+    with_size_threshold(size_threshold) {
+        RollingSizeOptions.assert(size_threshold);
+        this.#size_threshold = size_threshold;
+        return this;
+    }
+
+    /**
+     *  @param {time_threshold} time_threshold Roll/Create new file every time the current file size exceeds this threshold.
+     * @returns {RollingConfig} The current instance of RollingConfig.
+     * @throws {Error} If the time_threshold is not an instance of RollingTimeOptions.
+     */
+    with_time_threshold(time_threshold) {
+        RollingTimeOptions.assert(time_threshold);
+        this.#time_threshold = time_threshold;
+        return this;
+    }
+
+    /**
+     * @param {Object} json The json object to be parsed into {RollingConfig}.
+     * @returns {RollingConfig} A new instance of RollingConfig with values from the json object.
+     * @throws {Error} If the json is not an object.
+     */
+    static from_json(json) {
+        let rolling_config = new RollingConfig();
+
+        Object.keys(json).forEach((key) => {
+            switch (key) {
+                case "size_threshold":
+                    rolling_config = rolling_config.with_size_threshold(json[key]);
+                    break;
+                case "time_threshold":
+                    rolling_config = rolling_config.with_time_threshold(json[key]);
+                    break;
+            }
+        });
+        
+        return rolling_config;
+    }
+}
+
 class LogConfig {
+    /**
+     * @type {LogLevel}
+     * @private
+     * @description The log level to be used.
+     */
     #level = LogLevel.Info;
 
-    // how often should the log file be rolled. rolled means a new file is created after every x minutes/hours/days/weeks/months/years
-    #rolling_config = RollingConfig.Hourly;
+    /**
+     * @type {RollingConfig}
+     * @private
+     */
+    #rolling_config;
 
-    // the prefix to be added to new files.
+    /**
+     * @type {string}
+     * @private
+     * @description The prefix to be used for the log file name.
+     *
+     * If the file prefix is `MyFilePrefix_` the log files created will have the name
+     * `MyFilePrefix_2021-09-01.log`, `MyFilePrefix_2021-09-02.log` and so on.
+     */
     #file_prefix = "Logtar_";
 
-    // max size of the log file in bytes
-    #max_file_size = 5 * 1024 * 1024; // 5 MB
+    constructor() {
+        this.#rolling_config = RollingConfig.with_defaults();
+    }
 
     /**
      * @returns {LogConfig} A new instance of LogConfig with default values.
@@ -67,12 +138,21 @@ class LogConfig {
         return new LogConfig();
     }
 
+    /**
+     * @param {string} file_path The path to the config file.
+     * @returns {LogConfig} A new instance of LogConfig with values from the config file.
+     * @throws {Error} If the file_path is not a string.
+     */
     static from_file(file_path) {
         const file_contents = fs.readFileSync(file_path);
-        return LogConfig.#from_json(JSON.parse(file_contents));
+        return LogConfig.from_json(JSON.parse(file_contents));
     }
 
-    static #from_json(json) {
+    /**
+     * @param {Object} json The json object to be parsed into {LogConfig}.
+     * @returns {LogConfig} A new instance of LogConfig with values from the json object.
+     */
+    static from_json(json) {
         let log_config = new LogConfig();
         Object.keys(json).forEach((key) => {
             switch (key) {
@@ -84,9 +164,6 @@ class LogConfig {
                     break;
                 case "file_prefix":
                     log_config = log_config.with_file_prefix(json[key]);
-                    break;
-                case "max_file_size":
-                    log_config = log_config.with_max_file_size(json[key]);
                     break;
             }
         });
@@ -101,6 +178,9 @@ class LogConfig {
         }
     }
 
+    /**
+     * @returns {LogLevel} The current log level.
+     */
     get level() {
         return this.#level;
     }
@@ -116,21 +196,26 @@ class LogConfig {
         return this;
     }
 
+    /**
+     * @returns {RollingConfig} The current rolling config.
+     */
     get rolling_config() {
         return this.#rolling_config;
     }
 
     /**
-     * @param {RollingConfig} rolling_config The rolling config to be set.
+     * @param {RollingConfig} config The rolling config to be set.
      * @returns {LogConfig} The current instance of LogConfig.
-     * @throws {Error} If the rolling_config is not an instance of RollingConfig.
+     * @throws {Error} If the config is not an instance of RollingConfig.
      */
-    with_rolling_config(rolling_config) {
-        RollingConfig.assert(rolling_config);
-        this.#rolling_config = rolling_config;
+    with_rolling_config(config) {
+        this.#rolling_config = RollingConfig.from_json(config);
         return this;
     }
 
+    /**
+     * @returns {String} The current max file size.
+     */
     get file_prefix() {
         return this.#file_prefix;
     }
@@ -146,27 +231,6 @@ class LogConfig {
         }
 
         this.#file_prefix = file_prefix;
-        return this;
-    }
-
-    get max_file_size() {
-        return this.#max_file_size;
-    }
-
-    /**
-     * @param {number} max_file_size The max file size to be set, in bytes.
-     * @returns {LogConfig} The current instance of LogConfig.
-     * @throws {Error} If the max_file_size is invalid.
-     */
-    with_max_file_size(max_file_size) {
-        if (typeof max_file_size !== "number" || max_file_size < 100 || max_file_size === Infinity) {
-            throw new Error(
-                `max_file_size must be a number greater than 100 bytes. Unsupported param ${JSON.stringify(
-                    max_file_size
-                )}`
-            );
-        }
-        this.#max_file_size = max_file_size;
         return this;
     }
 }
@@ -242,16 +306,11 @@ class Logger {
     }
 }
 
-const config = LogConfig.with_defaults()
-    .with_file_prefix("Testing")
-    .with_log_level(LogLevel.Critical)
-    .with_rolling_config(RollingConfig.from_initials("m"))
-    .with_max_file_size(1000);
-
-const logger = Logger.with_config(config);
-const _config = LogConfig.from_file("config.demo.json");
-
 module.exports = {
     Logger,
     LogLevel,
+    LogConfig,
+    RollingConfig,
+    RollingSizeOptions,
+    RollingTimeOptions,
 };
