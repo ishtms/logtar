@@ -1,6 +1,6 @@
 {
   "name": "logtar",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A lightweight logger for your applications with rolling file support and much more.",
   "main": "index.js",
   "scripts": {
